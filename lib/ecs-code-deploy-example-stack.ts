@@ -21,13 +21,13 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
     const githubRepository = new cdk.CfnParameter(this, "githubRepository", {
       type: "String",
       description: "Github source code repository",
-      default: "amazon-ecs-fargate-cdk-v2-cicd"
+      default: "similarity-embeddings-code-pipeline-fargate-ecs"
     })
 
-    const githubPersonalTokenSecretName = new cdk.CfnParameter(this, "githubPersonalTokenSecretName", {
+    const githubPersonalTokenSecretName = new cdk.CfnParameter(this, "githubPersonalToken", {
       type: "String",
       description: "The name of the AWS Secrets Manager Secret which holds the GitHub Personal Access Token for this project.",
-      default: "/aws-samples/amazon-ecs-fargate-cdk-v2-cicd/github/personal_access_token"
+      default: "github/personal_access_token"
     })
 
     const ecrRepo = new ecr.Repository(this, 'ecrRepo');
@@ -82,7 +82,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
     });
 
     container.addPortMappings({
-      containerPort: 5000,
+      containerPort: 3000,
       protocol: ecs.Protocol.TCP
     });
 
