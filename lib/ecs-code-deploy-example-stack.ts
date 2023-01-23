@@ -30,7 +30,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       default: "github/personal_access_token"
     })
 
-    const ecrRepo = new ecr.Repository(this, 'ecrRepo');
+    const ecrRepo = new ecr.Repository(this, `${this.stackName}EcrRepo`);
 
     const vpc = new ec2.Vpc(this, `${this.stackName}Vpc`, {
       natGateways: 1,
@@ -42,7 +42,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
     // });
 
     const cluster = new ecs.Cluster(this, `${this.stackName}Cluster`, {
-      vpc: vpc,
+      vpc,
     });
 
     const logging = new ecs.AwsLogDriver({
@@ -67,14 +67,14 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       ]
     });
 
-    const taskDef = new ecs.FargateTaskDefinition(this, `${this.stackName}TaskDef`, {
-      taskRole: taskRole
+    const taskDefinition = new ecs.FargateTaskDefinition(this, `${this.stackName}TaskDef`, {
+      taskRole
     });
 
-    taskDef.addToExecutionRolePolicy(executionRolePolicy);
+    taskDefinition.addToExecutionRolePolicy(executionRolePolicy);
 
     const baseImage = 'public.ecr.aws/amazonlinux/amazonlinux:2022'
-    const container = taskDef.addContainer(`${this.stackName}AppContainer`, {
+    const container = taskDefinition.addContainer(`${this.stackName}AppContainer`, {
       image: ecs.ContainerImage.fromRegistry(baseImage),
       memoryLimitMiB: 256,
       cpu: 256,
@@ -87,19 +87,19 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
     });
 
     const fargateService = new ecs_patterns.ApplicationLoadBalancedFargateService(this, `${this.stackName}FargateService`, {
-      cluster: cluster,
-      taskDefinition: taskDef,
+      cluster,
+      taskDefinition,
       publicLoadBalancer: true,
       desiredCount: 1,
       listenerPort: 80
     });
 
-    // const scaling = fargateService.service.autoScaleTaskCount({ maxCapacity: 6 });
-    // scaling.scaleOnCpuUtilization('cpuscaling', {
-    //   targetUtilizationPercent: 10,
-    //   scaleInCooldown: cdk.Duration.seconds(60),
-    //   scaleOutCooldown: cdk.Duration.seconds(60)
-    // });
+    const scaling = fargateService.service.autoScaleTaskCount({ maxCapacity: 2 });
+    scaling.scaleOnCpuUtilization('cpuscaling', {
+      targetUtilizationPercent: 66,
+      scaleInCooldown: cdk.Duration.seconds(60),
+      scaleOutCooldown: cdk.Duration.seconds(60)
+    });
 
     const gitHubSource = codebuild.Source.gitHub({
       owner: githubUserName.valueAsString,
@@ -155,7 +155,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
             commands: [
               'echo "in post-build stage"',
               'cd ..',
-              "printf '[{\"name\":\"similarity-embeddings-app\",\"imageUri\":\"%s\"}]' $ecr_repo_uri:$tag > imagedefinitions.json",
+              "printf '[{\"name\":\"similarity-embedding-app\",\"imageUri\":\"%s\"}]' $ecr_repo_uri:$tag > imagedefinitions.json",
               "pwd; ls -al; cat imagedefinitions.json"
             ]
           }
@@ -198,6 +198,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
     });
 
     new codepipeline.Pipeline(this, `${this.stackName}CodePipeline`, {
+      pipelineName: `${this.stackName}CodePipeline`,
       stages: [
         {
           stageName: 'source',
@@ -218,7 +219,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       ]
     });
 
-    ecrRepo.grantPullPush(project.role!)
+    ecrRepo.grantPullPush(project.role!);
     project.addToRolePolicy(new iam.PolicyStatement({
       actions: [
         "ecs:describecluster",
