@@ -3,11 +3,14 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns';
+import * as ecsPatterns from 'aws-cdk-lib/aws-ecs-patterns';
+import * as logs from "aws-cdk-lib/aws-logs";
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 import * as codepipeline from 'aws-cdk-lib/aws-codepipeline';
-import * as codepipeline_actions from 'aws-cdk-lib/aws-codepipeline-actions';
+import * as codepipelineActions from 'aws-cdk-lib/aws-codepipeline-actions';
 import { Construct } from 'constructs';
+import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
+import * as path from "path";
 
 export class EcsCodeDeployExampleStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -32,17 +35,18 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
 
     const ecrRepo = new ecr.Repository(this, `${this.stackName}EcrRepo`);
 
-    const vpc = new ec2.Vpc(this, `${this.stackName}Vpc`, {
+    const vpc = new ec2.Vpc(this, "SimilarityEmbeddingsVpc", {
       natGateways: 1,
-      maxAzs: 3  /* does a sample need 3 az's? */
+      subnetConfiguration: [
+        {cidrMask: 24, subnetType: ec2.SubnetType.PUBLIC, name: "Public"},
+        {cidrMask: 24, subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS, name: "Private"}
+      ],
+      maxAzs: 3
     });
 
-    // const clusterAdmin = new iam.Role(this, 'adminrole', {
-    //   assumedBy: new iam.AccountRootPrincipal()
-    // });
-
-    const cluster = new ecs.Cluster(this, `${this.stackName}Cluster`, {
+    const cluster = new ecs.Cluster(this, 'SimilarityEmbeddingsCluster', {
       vpc,
+      containerInsights: true
     });
 
     const logging = new ecs.AwsLogDriver({
@@ -73,25 +77,28 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
 
     taskDefinition.addToExecutionRolePolicy(executionRolePolicy);
 
-    const baseImage = 'public.ecr.aws/amazonlinux/amazonlinux:2022'
-    const container = taskDefinition.addContainer(`${this.stackName}AppContainer`, {
-      image: ecs.ContainerImage.fromRegistry(baseImage),
-      memoryLimitMiB: 256,
-      cpu: 256,
-      logging
-    });
+    const image = ecs.ContainerImage.fromAsset(
+        path.join(__dirname, '../src'),
+        {
+          platform: ecrAssets.Platform.LINUX_AMD64,
+        }
+    );
 
-    container.addPortMappings({
-      containerPort: 3000,
-      protocol: ecs.Protocol.TCP
-    });
-
-    const fargateService = new ecs_patterns.ApplicationLoadBalancedFargateService(this, `${this.stackName}FargateService`, {
+    const fargateService = new ecsPatterns.ApplicationLoadBalancedFargateService(this, 'SimilarityEmbeddingsAlbFargate', {
       cluster,
-      taskDefinition,
-      publicLoadBalancer: true,
+      taskImageOptions: {
+        image,
+        containerPort: 80,
+        logDriver: ecs.LogDrivers.awsLogs({
+          streamPrefix: id,
+          logRetention: logs.RetentionDays.ONE_MONTH,
+        }),
+      },
+      assignPublicIp: true,
+      memoryLimitMiB: 512,
+      cpu: 256,
       desiredCount: 1,
-      listenerPort: 80
+      deploymentController: {type: ecs.DeploymentControllerType.ECS},
     });
 
     const scaling = fargateService.service.autoScaleTaskCount({ maxCapacity: 2 });
@@ -171,7 +178,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
     const sourceOutput = new codepipeline.Artifact();
     const buildOutput = new codepipeline.Artifact();
     const nameOfGithubPersonTokenParameterAsString = githubPersonalTokenSecretName.valueAsString
-    const sourceAction = new codepipeline_actions.GitHubSourceAction({
+    const sourceAction = new codepipelineActions.GitHubSourceAction({
       actionName: 'github_source',
       owner: githubUserName.valueAsString,
       repo: githubRepository.valueAsString,
@@ -180,18 +187,18 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       output: sourceOutput
     });
 
-    const buildAction = new codepipeline_actions.CodeBuildAction({
+    const buildAction = new codepipelineActions.CodeBuildAction({
       actionName: 'codebuild',
       project: project,
       input: sourceOutput,
       outputs: [buildOutput],
     });
 
-    const manualApprovalAction = new codepipeline_actions.ManualApprovalAction({
+    const manualApprovalAction = new codepipelineActions.ManualApprovalAction({
       actionName: 'approve',
     });
 
-    const deployAction = new codepipeline_actions.EcsDeployAction({
+    const deployAction = new codepipelineActions.EcsDeployAction({
       actionName: 'deployAction',
       service: fargateService.service,
       imageFile: new codepipeline.ArtifactPath(buildOutput, `imagedefinitions.json`)
