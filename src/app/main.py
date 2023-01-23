@@ -20,4 +20,7 @@ def embeddings_create(item: Item):
     for text in item.texts:
         embeddings.append(model.encode(text))
 
-    return {"embeddings": [embedding.tolist() for embedding in embeddings]}
+    return {
+        "message": "DONE"
+        "embeddings": [embedding.tolist() for embedding in embeddings],
+    }

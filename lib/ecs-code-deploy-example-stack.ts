@@ -49,34 +49,6 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       containerInsights: true
     });
 
-    const logging = new ecs.AwsLogDriver({
-      streamPrefix: "ecs-logs"
-    });
-
-    const taskRole = new iam.Role(this, `${this.stackName}TaskRole`, {
-      roleName: `ecs-taskrole-${this.stackName}`,
-      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com')
-    });
-
-    const executionRolePolicy =  new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      resources: ['*'],
-      actions: [
-        "ecr:getauthorizationtoken",
-        "ecr:batchchecklayeravailability",
-        "ecr:getdownloadurlforlayer",
-        "ecr:batchgetimage",
-        "logs:createlogstream",
-        "logs:putlogevents"
-      ]
-    });
-
-    const taskDefinition = new ecs.FargateTaskDefinition(this, `${this.stackName}TaskDef`, {
-      taskRole
-    });
-
-    taskDefinition.addToExecutionRolePolicy(executionRolePolicy);
-
     const image = ecs.ContainerImage.fromAsset(
         path.join(__dirname, '../src'),
         {
@@ -99,13 +71,6 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       cpu: 256,
       desiredCount: 1,
       deploymentController: {type: ecs.DeploymentControllerType.ECS},
-    });
-
-    const scaling = fargateService.service.autoScaleTaskCount({ maxCapacity: 2 });
-    scaling.scaleOnCpuUtilization('cpuscaling', {
-      targetUtilizationPercent: 66,
-      scaleInCooldown: cdk.Duration.seconds(60),
-      scaleOutCooldown: cdk.Duration.seconds(60)
     });
 
     const gitHubSource = codebuild.Source.gitHub({
