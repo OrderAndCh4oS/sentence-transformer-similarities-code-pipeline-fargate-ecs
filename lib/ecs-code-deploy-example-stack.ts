@@ -46,6 +46,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
 
     const cluster = new ecs.Cluster(this, 'SimilarityEmbeddingsCluster', {
       vpc,
+      clusterName: 'similarity-embeddings-cluster',
       containerInsights: true
     });
 
@@ -127,7 +128,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
             commands: [
               'echo "in post-build stage"',
               'cd ..',
-              "printf '[{\"name\":\"similarity-embedding-app\",\"imageUri\":\"%s\"}]' $ecr_repo_uri:$tag > imagedefinitions.json",
+              `printf '[{"name":"${cluster.clusterName}","imageUri":"%s"}]' $ecr_repo_uri:$tag > imagedefinitions.json`,
               "pwd; ls -al; cat imagedefinitions.json"
             ]
           }
