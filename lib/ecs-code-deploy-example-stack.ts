@@ -57,10 +57,13 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
         }
     );
 
+    const containerName = 'similarity-embeddings-container'
+
     const fargateService = new ecsPatterns.ApplicationLoadBalancedFargateService(this, 'SimilarityEmbeddingsAlbFargate', {
       cluster,
       taskImageOptions: {
         image,
+        containerName,
         containerPort: 80,
         logDriver: ecs.LogDrivers.awsLogs({
           streamPrefix: id,
@@ -128,7 +131,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
             commands: [
               'echo "in post-build stage"',
               'cd ..',
-              `printf '[{"name":"${cluster.clusterName}","imageUri":"%s"}]' $ecr_repo_uri:$tag > imagedefinitions.json`,
+              `printf '[{"name":"${containerName}","imageUri":"%s"}]' $ecr_repo_uri:$tag > imagedefinitions.json`,
               "pwd; ls -al; cat imagedefinitions.json"
             ]
           }

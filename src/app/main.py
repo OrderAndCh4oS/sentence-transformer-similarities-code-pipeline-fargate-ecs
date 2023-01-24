@@ -21,5 +21,6 @@ def embeddings_create(item: Item):
         embeddings.append(model.encode(text))
 
     return {
+        "message": "Success",
         "embeddings": [embedding.tolist() for embedding in embeddings],
     }
