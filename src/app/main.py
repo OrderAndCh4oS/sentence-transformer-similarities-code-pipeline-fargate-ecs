@@ -14,6 +14,10 @@ class Item(BaseModel):
 model_name = "msmarco-MiniLM-L12-cos-v5"
 model = SentenceTransformer(f'/src/app/{model_name}')
 
+@app.get("/")
+def embeddings_create():
+    return ""
+
 @app.post("/embeddings/create")
 def embeddings_create(item: Item):
     embeddings = []
@@ -21,6 +25,5 @@ def embeddings_create(item: Item):
         embeddings.append(model.encode(text))
 
     return {
-        "status": "success",
         "embeddings": [embedding.tolist() for embedding in embeddings]
     }
