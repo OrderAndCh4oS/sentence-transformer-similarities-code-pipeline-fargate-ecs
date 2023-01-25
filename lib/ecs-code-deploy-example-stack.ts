@@ -33,7 +33,34 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       default: "github/personal_access_token"
     })
 
-    const ecrRepo = new ecr.Repository(this, `${this.stackName}EcrRepo`);
+    // {
+    //     "Version": "2012-10-17",
+    //     "Statement": [
+    //         {
+    //             "Sid": "AllowPushPull",
+    //             "Effect": "Allow",
+    //             "Principal": {
+    //                 "AWS": [
+    //                     "arn:aws:iam::account-id:user/push-pull-user-1",
+    //                     "arn:aws:iam::account-id:user/push-pull-user-2"
+    //                 ]
+    //             },
+    //             "Action": [
+    //                 "ecr:BatchGetImage",
+    //                 "ecr:BatchCheckLayerAvailability",
+    //                 "ecr:CompleteLayerUpload",
+    //                 "ecr:GetDownloadUrlForLayer",
+    //                 "ecr:InitiateLayerUpload",
+    //                 "ecr:PutImage",
+    //                 "ecr:UploadLayerPart"
+    //             ]
+    //         }
+    //     ]
+    // }
+
+    const ecrRepo = new ecr.Repository(this, `${this.stackName}EcrRepo`, {
+      repositoryName: 'similarity-embeddings-repository'
+    });
 
     const vpc = new ec2.Vpc(this, "SimilarityEmbeddingsVpc", {
       natGateways: 1,
@@ -57,11 +84,20 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
         }
     );
 
-    const containerName = 'similarity-embeddings-container'
+    const containerName = 'similarity-embeddings-container';
+
+    const taskRole = new iam.Role(this, `ecs-taskrole-${this.stackName}`, {
+      roleName: `ecs-taskrole-${this.stackName}`,
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com')
+    });
+
+
 
     const fargateService = new ecsPatterns.ApplicationLoadBalancedFargateService(this, 'SimilarityEmbeddingsAlbFargate', {
       cluster,
+      circuitBreaker: {rollback: true},
       taskImageOptions: {
+        taskRole,
         image,
         containerName,
         containerPort: 80,
@@ -76,6 +112,21 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       desiredCount: 1,
       deploymentController: {type: ecs.DeploymentControllerType.ECS},
     });
+
+    const executionRolePolicy =  new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: ['*'],
+      actions: [
+        "ecr:getauthorizationtoken",
+        "ecr:batchchecklayeravailability",
+        "ecr:getdownloadurlforlayer",
+        "ecr:batchgetimage",
+        "logs:createlogstream",
+        "logs:putlogevents"
+      ]
+    });
+
+    fargateService.taskDefinition.addToExecutionRolePolicy(executionRolePolicy)
 
     const gitHubSource = codebuild.Source.gitHub({
       owner: githubUserName.valueAsString,
@@ -196,6 +247,7 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
     });
 
     ecrRepo.grantPullPush(project.role!);
+
     project.addToRolePolicy(new iam.PolicyStatement({
       actions: [
         "ecs:describecluster",
