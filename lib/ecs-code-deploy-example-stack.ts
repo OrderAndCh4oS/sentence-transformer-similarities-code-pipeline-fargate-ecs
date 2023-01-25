@@ -33,31 +33,6 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       default: "github/personal_access_token"
     })
 
-    // {
-    //     "Version": "2012-10-17",
-    //     "Statement": [
-    //         {
-    //             "Sid": "AllowPushPull",
-    //             "Effect": "Allow",
-    //             "Principal": {
-    //                 "AWS": [
-    //                     "arn:aws:iam::account-id:user/push-pull-user-1",
-    //                     "arn:aws:iam::account-id:user/push-pull-user-2"
-    //                 ]
-    //             },
-    //             "Action": [
-    //                 "ecr:BatchGetImage",
-    //                 "ecr:BatchCheckLayerAvailability",
-    //                 "ecr:CompleteLayerUpload",
-    //                 "ecr:GetDownloadUrlForLayer",
-    //                 "ecr:InitiateLayerUpload",
-    //                 "ecr:PutImage",
-    //                 "ecr:UploadLayerPart"
-    //             ]
-    //         }
-    //     ]
-    // }
-
     const ecrRepo = new ecr.Repository(this, `${this.stackName}EcrRepo`, {
       repositoryName: 'similarity-embeddings-repository'
     });
@@ -90,8 +65,6 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
       roleName: `ecs-taskrole-${this.stackName}`,
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com')
     });
-
-
 
     const fargateService = new ecsPatterns.ApplicationLoadBalancedFargateService(this, 'SimilarityEmbeddingsAlbFargate', {
       cluster,
@@ -159,12 +132,6 @@ export class EcsCodeDeployExampleStack extends cdk.Stack {
         version: "0.2",
         phases: {
           pre_build: {
-            /*
-            commands: [
-              'env',
-              'export tag=${CODEBUILD_RESOLVED_SOURCE_VERSION}'
-            ]
-            */
             commands: [
               'env',
               'export tag=latest'
